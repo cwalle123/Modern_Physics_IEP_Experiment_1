@@ -5,19 +5,59 @@ import csv
 import math
 import matplotlib.pyplot as plt
 
-# Internal imports
-import constants
-
 ################################################################################################################################################################
 """Constants"""
 
-g_actual = 9.812                                # m/s^2 (accepted/reference value for gravitational acceleration)
-d_12 = constants.d_12                           # distance between gate 1 and gate 2, fixed for every trial
-d_12_uncertainty = constants.d_12_uncertainty   # uncertainty in d_12
-d_13_uncertainty = constants.d_13_uncertainty   # uncertainty in d_13
+g_actual = 9.812                                        # m/s^2 (accepted/reference value for gravitational acceleration)
+
+# l_1 varies per run and is loaded from Data/data.csv instead of being hard-coded here.
+l_1_uncertainty = 0.1                                   # cm
+
+d_12 = 7.5                                              # cm  distance between gate 1 and gate 2, fixed for every trial (original l_1 - l_2 = 101.5 - 94)
+l_2_uncertainty = 0.1                                   # cm
+d_12_uncertainty = l_1_uncertainty + l_2_uncertainty    # cm
+ 
+l_3 = 0.5                                               # cm
+l_3_uncertainty = 0.1                                   # cm
+d_13_uncertainty = l_1_uncertainty + l_3_uncertainty    # cm
 
 ################################################################################################################################################################
 """Functions"""
+
+def load_data(filepath):
+    """
+    Read the raw trial data from a CSV file.
+
+    Expected columns: run, l_1, t23 (with a header row to skip).
+
+    Returns a list of tuples: (run_id, l_1, time_comp)
+    """
+    runs = []
+    with open(filepath, newline='') as f:
+        reader = csv.reader(f)
+        next(reader)  # skip header row
+        for row in reader:
+            if not row:  # skip blank lines (e.g. trailing newline at end of file)
+                continue
+            run_id, l_1, time_comp = row
+            # Convert all values from strings to floats before storing
+            runs.append((float(run_id), float(l_1), float(time_comp)))
+    return runs
+
+def group_by_l1(runs):
+    """
+    Group trial timing data by l_1 (i.e. by which distance setting was used).
+
+    runs : list of (run_id, l_1, time_comp) tuples
+
+    Returns a dict mapping l_1 -> list of time_comp values for that l_1.
+    """
+    groups = {}
+    for run_id, l_1, time_comp in runs:
+        # setdefault creates an empty list the first time this l_1 is seen
+        groups.setdefault(l_1, []).append(time_comp)
+    return groups
+
 
 def get_g(t_23, d_12, d_13):
     """
@@ -57,40 +97,6 @@ def get_g_uncertainty(t_23, t23_uncertainty, d_12, d_13):
     # Convert cm/s^2 -> m/s^2
     return g_cm_per_s2_uncertainty / 100
 
-def load_data(filepath):
-    """
-    Read the raw trial data from a CSV file.
-
-    Expected columns: run, l_1, t23 (with a header row to skip).
-
-    Returns a list of tuples: (run_id, l_1, time_comp)
-    """
-    runs = []
-    with open(filepath, newline='') as f:
-        reader = csv.reader(f)
-        next(reader)  # skip header row
-        for row in reader:
-            if not row:  # skip blank lines (e.g. trailing newline at end of file)
-                continue
-            run_id, l_1, time_comp = row
-            # Convert all values from strings to floats before storing
-            runs.append((float(run_id), float(l_1), float(time_comp)))
-    return runs
-
-def group_by_l1(runs):
-    """
-    Group trial timing data by l_1 (i.e. by which distance setting was used).
-
-    runs : list of (run_id, l_1, time_comp) tuples
-
-    Returns a dict mapping l_1 -> list of time_comp values for that l_1.
-    """
-    groups = {}
-    for run_id, l_1, time_comp in runs:
-        # setdefault creates an empty list the first time this l_1 is seen
-        groups.setdefault(l_1, []).append(time_comp)
-    return groups
-
 def compute_group_results(groups):
     """
     For each l_1 group: average the trial times, compute g and its
@@ -111,7 +117,7 @@ def compute_group_results(groups):
     for l_1 in sorted(groups):
         times = groups[l_1]
         n = len(times)
-        d_13 = abs(l_1 - constants.l_3)  # distance between gate 1 and gate 3 for this l_1
+        d_13 = abs(l_1 - l_3)  # distance between gate 1 and gate 3 for this l_1
 
         # Mean time across all trials at this l_1
         mean_t23 = sum(times) / n
@@ -121,7 +127,7 @@ def compute_group_results(groups):
             variance = sum((t - mean_t23) ** 2 for t in times) / (n - 1)
             t23_uncertainty = math.sqrt(variance) / math.sqrt(n)
         else:
-            t23_uncertainty = 0.0
+            t23_uncertainty = 0.0 # TODO: UPDATE THIS, THIS ISNT TRUE BUT IT DOESNT MATTER FOR MANY TRIALS
 
         # Compute g and its uncertainty for this group
         g_val = get_g(mean_t23, d_12, d_13)
@@ -136,31 +142,11 @@ def compute_group_results(groups):
 
     return group_g, group_g_unc
 
-def compute_overall_g(group_g, group_g_unc):
-    """
-    Combine the per-group g values into a single overall estimate,
-    using inverse-variance weighting (groups with smaller uncertainty
-    count more).
 
-    group_g     : list of g values per group (m/s^2)
-    group_g_unc : list of uncertainties per group (m/s^2)
-
-    Returns the overall weighted mean g (m/s^2), and prints a summary.
-    """
-    # Weight each group by 1 / uncertainty^2 (inverse-variance weighting)
-    weights = [1 / unc ** 2 for unc in group_g_unc]
-    overall_g = sum(g * w for g, w in zip(group_g, weights)) / sum(weights)
-
-    print(f"\nOverall weighted mean g: {overall_g:.4f} m/s^2")
-    print(f"Actual g: {g_actual} m/s^2")
-    print(f"Percentage Error: {abs((overall_g - g_actual) / g_actual * 100):.2f}%")
-
-    return overall_g
-
-def plot_g_per_run(runs):
+def plot_g_vs_t23(runs):
     """
     Plot g computed individually for every single trial (not grouped/averaged),
-    with error bars, alongside a reference line for the actual g value.
+    against t23, with error bars, alongside a reference line for the actual g value.
 
     runs : list of (run_id, l_1, time_comp) tuples
     """
@@ -170,7 +156,7 @@ def plot_g_per_run(runs):
 
     # Compute g and its uncertainty for every individual trial
     for run_id, l_1, time_comp in runs:
-        d_13 = abs(l_1 - constants.l_3)
+        d_13 = abs(l_1 - l_3)
         g_val = get_g(time_comp, d_12, d_13)
         g_unc = get_g_uncertainty(time_comp, 0.0, d_12, d_13)  # no averaging, so t23 uncertainty = 0
         all_t23.append(time_comp)
@@ -188,6 +174,30 @@ def plot_g_per_run(runs):
     plt.legend()
     plt.show()
 
+def plot_g_vs_l1(groups, group_g, group_g_unc):
+    """
+    Plot the averaged g value per l_1 group against l_1 (drop height), to
+    check whether apparent g varies with drop height -- in reality this is
+    more likely a sign of drag effects than a real change in g.
+
+    groups      : dict mapping l_1 -> list of time_comp values (used to get
+                  the sorted l_1 values matching group_g/group_g_unc order)
+    group_g     : g value per group (m/s^2), sorted by l_1
+    group_g_unc : uncertainty on g per group (m/s^2), sorted by l_1
+    """
+    l1_values = sorted(groups)
+
+    # Scatter plot of g vs l_1, with vertical error bars
+    plt.errorbar(l1_values, group_g, yerr=group_g_unc, fmt='o', capsize=3)
+    # Horizontal reference line at the accepted value of g
+    plt.axhline(g_actual, color='red', linestyle='--', label='Actual g')
+
+    plt.xlabel('l_1 (cm)')
+    plt.ylabel('g (m/s^2)')
+    plt.title('Measured g vs drop height (l_1)')
+    plt.legend()
+    plt.show()
+
 ################################################################################################################################################################
 """Main"""
 
@@ -200,8 +210,8 @@ def main():
     runs = load_data('Data/data.csv')
     groups = group_by_l1(runs)
     group_g, group_g_unc = compute_group_results(groups)
-    compute_overall_g(group_g, group_g_unc)
-    plot_g_per_run(runs)
+    plot_g_vs_t23(runs)
+    plot_g_vs_l1(groups, group_g, group_g_unc)
 
 if __name__ == '__main__':
     main()
