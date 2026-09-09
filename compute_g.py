@@ -28,6 +28,8 @@ with open('Data/data.csv', newline='') as f:
     reader = csv.reader(f)
     next(reader)  # skip header
     for row in reader:
+        if not row:  # skip blank lines
+            continue
         run_id, l_1, time_comp = row
         runs.append((float(run_id), float(l_1), float(time_comp)))
 
@@ -70,3 +72,28 @@ overall_g = sum(g * w for g, w in zip(group_g, weights)) / sum(weights)
 print(f"\nOverall weighted mean g: {overall_g:.4f} m/s^2")
 print(f"Actual g: {g_actual} m/s^2")
 print(f"Percentage Error: {abs((overall_g - g_actual) / g_actual * 100):.2f}%")
+
+#####
+
+import matplotlib.pyplot as plt
+
+# --- Simple plot: g per run, with error bars and actual g line ---
+all_t23 = []
+all_g = []
+all_g_unc = []
+
+for run_id, l_1, time_comp in runs:
+    d_13 = abs(l_1 - const.l_3)
+    g_val = get_g(time_comp, d_12, d_13)
+    g_unc = get_g_uncertainty(time_comp, 0.0, d_12, d_13)
+    all_t23.append(time_comp)
+    all_g.append(g_val)
+    all_g_unc.append(g_unc)
+
+plt.errorbar(all_t23, all_g, yerr=all_g_unc, fmt='o', capsize=3)
+plt.axhline(g_actual, color='red', linestyle='--', label='Actual g')
+plt.xlabel('t23 (s)')
+plt.ylabel('g (m/s^2)')
+plt.title('Measured g vs t23')
+plt.legend()
+plt.show()
