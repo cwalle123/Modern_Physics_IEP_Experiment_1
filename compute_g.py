@@ -1,9 +1,16 @@
+"""Imports"""
+
+# External imports
 import csv
 import math
+
+# Internal imports
 import constants as const
 
-g_actual = 9.812  # m/s^2
+################################################################################################################################################################
+"""Constants and Functions"""
 
+g_actual = 9.812  # m/s^2
 d_12 = const.d_12
 d_12_uncertainty = const.d_12_uncertainty
 d_13_uncertainty = const.d_13_uncertainty
@@ -12,7 +19,6 @@ d_13_uncertainty = const.d_13_uncertainty
 def get_g(t_23, d_12, d_13):
     g_cm_per_s2 = (math.sqrt(2 * d_13) - math.sqrt(2 * d_12)) ** 2 / t_23 ** 2
     return g_cm_per_s2 / 100
-
 
 def get_g_uncertainty(t_23, t23_uncertainty, d_12, d_13):
     g_cm_per_s2 = (math.sqrt(2 * d_13) - math.sqrt(2 * d_12)) ** 2 / t_23 ** 2
@@ -73,7 +79,8 @@ print(f"\nOverall weighted mean g: {overall_g:.4f} m/s^2")
 print(f"Actual g: {g_actual} m/s^2")
 print(f"Percentage Error: {abs((overall_g - g_actual) / g_actual * 100):.2f}%")
 
-#####
+################################################################################################################################################################
+"""Plotting"""
 
 import matplotlib.pyplot as plt
 
