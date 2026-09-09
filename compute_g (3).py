@@ -4,24 +4,23 @@ import matplotlib.pyplot as plt
 
 g_actual = 9.812  # m/s^2
 
-# --- Load timing data (one row per trial) ---
-run, time_human, time_comp, time2_comp = np.loadtxt('Data/data.csv', delimiter=',', skiprows=1, unpack=True)
-
-# --- Load l_1 for each run; l_2 and l_3 are fixed ---
-dist_run, dist_l1 = np.loadtxt('Data/distances.csv', delimiter=',', skiprows=1, unpack=True)
-run_to_l1 = dict(zip(dist_run, dist_l1))
-l_1 = np.array([run_to_l1[r] for r in run])
+# --- Load timing + distance data (one row per trial, one file) ---
+run, l_1, time_comp = np.loadtxt('Data/data.csv', delimiter=',', skiprows=1, unpack=True)
 
 # --- Distances ---
+# d_12 is fixed: gate 2 moves with gate 1, keeping the same separation.
+# d_13 varies per run since gate 3 is fixed while gate 1 (and l_1) moves.
 d_12 = const.d_12
 d_13 = np.abs(l_1 - const.l_3)
 d_12_uncertainty = const.d_12_uncertainty
 d_13_uncertainty = const.d_13_uncertainty
 
+
 # --- g in cm/s^2, then converted to m/s^2 ---
 def get_g(t_23, d_12, d_13):
     g_cm_per_s2 = (np.sqrt(2 * d_13) - np.sqrt(2 * d_12))**2 / t_23**2
     return g_cm_per_s2 / 100
+
 
 # --- Uncertainty propagation ---
 def get_g_uncertainty(t_23, t23_uncertainty, d_12, d_13):
@@ -30,6 +29,7 @@ def get_g_uncertainty(t_23, t23_uncertainty, d_12, d_13):
         (d_13_uncertainty / d_13 + d_12_uncertainty / d_12)
         + 2 * (t23_uncertainty / t_23))
     return g_cm_per_s2_uncertainty / 100
+
 
 # --- g computed individually for every trial ---
 g_per_run = get_g(time_comp, d_12, d_13)
@@ -71,18 +71,22 @@ print(f"Actual g: {g_actual} m/s^2")
 print(f"Percentage Error: {abs((overall_g - g_actual)/g_actual * 100):.2f}%")
 
 
-# --- Plot: g vs. distance between gates 1 and 3 ---
+# --- Plot: g vs. t23, colored by distance (l_1) ---
 fig, ax = plt.subplots()
 
-ax.scatter(d_13, g_per_run, alpha=0.4, color='C0', label='Individual runs')
-ax.errorbar(group_d13, group_g, yerr=group_g_unc, fmt='o', capsize=3,
-            color='C1', label='Mean g per distance')
+colors = plt.cm.tab10(np.linspace(0, 1, len(unique_l1)))
+
+for val, color in zip(unique_l1, colors):
+    mask = (l_1 == val)
+    d13_val = d_13[mask][0]
+    ax.errorbar(time_comp[mask], g_per_run[mask], yerr=g_uncertainty_per_run[mask],
+                fmt='o', capsize=3, color=color, label=f'l1={val:.1f} cm (d13={d13_val:.1f} cm)')
 
 ax.axhline(g_actual, color='red', linestyle='--', label='Actual g')
 
-ax.set_xlabel('d13 (cm)')
+ax.set_xlabel('t23 (s)')
 ax.set_ylabel('g (m/s$^2$)')
-ax.set_title('Measured g vs. distance between gates 1 and 3')
+ax.set_title('Measured g vs. t23, by distance')
 ax.legend()
 
 plt.show()
