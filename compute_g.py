@@ -11,10 +11,10 @@ import constants
 ################################################################################################################################################################
 """Constants"""
 
-g_actual = 9.812  # m/s^2 (accepted/reference value for gravitational acceleration)
-d_12 = constants.d_12  # distance between gate 1 and gate 2, fixed for every trial
-d_12_uncertainty = constants.d_12_uncertainty  # uncertainty in d_12
-d_13_uncertainty = constants.d_13_uncertainty  # uncertainty in d_13
+g_actual = 9.812                                # m/s^2 (accepted/reference value for gravitational acceleration)
+d_12 = constants.d_12                           # distance between gate 1 and gate 2, fixed for every trial
+d_12_uncertainty = constants.d_12_uncertainty   # uncertainty in d_12
+d_13_uncertainty = constants.d_13_uncertainty   # uncertainty in d_13
 
 ################################################################################################################################################################
 """Functions"""
