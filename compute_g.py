@@ -13,16 +13,16 @@ from scipy.optimize import curve_fit
 g_actual = 9.812                                        # m/s^2 (accepted/reference value for gravitational acceleration)
 
 # l_1 varies per run and is loaded from Data/data.csv instead of being hard-coded here.
-l_1_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
-
-d_12 = 7.5                                              # cm  distance between gate 1 and gate 2, fixed for every trial (original l_1 - l_2 = 101.5 - 94)
-l_2_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
-d_12_uncertainty = l_1_uncertainty + l_2_uncertainty    # cm  (d12 = l1 - l2, so uncertainties add)
-
+d_12 = 7.5                                              # cm  distance between gate 1 and gate 2, fixed for every trial (original l_1 - l_2 = 101.5 - 94)  
 l_3 = 1.3                                               # cm
+
+l_1_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
+l_2_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
 l_3_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
+
+d_12_uncertainty = l_1_uncertainty + l_2_uncertainty    # cm  (d12 = l1 - l2, so uncertainties add)
 d_23_uncertainty = l_2_uncertainty + l_3_uncertainty    # cm  (d23 = l2 - l3, so uncertainties add)
-d_13_uncertainty = d_12_uncertainty + d_23_uncertainty  # cm  (d13 = d12 + d23, so uncertainties add)
+d_13_uncertainty = d_12_uncertainty + d_23_uncertainty  # cm  (d13 = d12 - d23, so uncertainties add)
 
 t_uncertainty = 1e-6                                    # s   (single photoelectric sensor reading, microsecond accuracy)
 t23_sensor_uncertainty = 2 * t_uncertainty              # s   (t23 = t3 - t2, so the two sensor uncertainties add)
@@ -83,26 +83,44 @@ def get_g(t_23, d_12, d_13):
 
 def get_g_uncertainty(t_23, t23_uncertainty, d_12, d_13):
     """
-    Propagate uncertainty in d_12, d_13, and t_23 into an uncertainty on g.
-
+    Propagate uncertainty in d_12, d_13, and t_23 into an uncertainty on g,
+    using exact partial-derivative (first-order) error propagation:
+ 
+        u_g^2 = (dg/dd13)^2 * u_d13^2 + (dg/dd12)^2 * u_d12^2 + (dg/dt23)^2 * u_t23^2
+ 
+    Writing A = sqrt(2*d13), B = sqrt(2*d12), so g = (A-B)^2 / t23^2:
+ 
+        dg/dd13 =  2*(A-B) / (A * t23^2)
+        dg/dd12 = -2*(A-B) / (B * t23^2)
+        dg/dt23 = -2*g / t23
+ 
+    This treats the three input uncertainties as independent (adding their
+    contributions in quadrature), unlike a simple relative-error sum, which
+    implicitly assumes worst-case correlated errors and overestimates u_g.
+ 
     t_23             : time between gate 2 and gate 3 (s)
-    t23_uncertainty  : uncertainty in t_23 (s) -- the TOTAL uncertainty for
-                        this particular t_23 (sensor uncertainty, or sensor
-                        uncertainty combined in quadrature with the
-                        statistical spread across repeated trials)
+    t23_uncertainty  : uncertainty in t_23 (s)
     d_12             : distance between gate 1 and gate 2 (cm)
     d_13             : distance between gate 1 and gate 3 (cm)
-
+ 
     Returns the uncertainty in g, in m/s^2.
     """
-    # Recompute g in cm/s^2 (needed as a base value for relative-error propagation)
-    g_cm_per_s2 = (math.sqrt(2 * d_13) - math.sqrt(2 * d_12)) ** 2 / t_23 ** 2
-
-    # Combine relative uncertainties from each input (standard error propagation)
-    g_cm_per_s2_uncertainty = g_cm_per_s2 * (
-        (d_13_uncertainty / d_13 + d_12_uncertainty / d_12)
-        + 2 * (t23_uncertainty / t_23))
-
+    A = math.sqrt(2 * d_13)
+    B = math.sqrt(2 * d_12)
+    g_cm_per_s2 = (A - B) ** 2 / t_23 ** 2
+ 
+    # Partial derivatives of g (in cm/s^2) with respect to each input
+    dg_dd13 = 2 * (A - B) / (A * t_23 ** 2)
+    dg_dd12 = -2 * (A - B) / (B * t_23 ** 2)
+    dg_dt23 = -2 * g_cm_per_s2 / t_23
+ 
+    # Combine contributions in quadrature (independent-error propagation)
+    g_cm_per_s2_uncertainty = math.sqrt(
+        (dg_dd13 * d_13_uncertainty) ** 2 +
+        (dg_dd12 * d_12_uncertainty) ** 2 +
+        (dg_dt23 * t23_uncertainty) ** 2
+    )
+ 
     # Convert cm/s^2 -> m/s^2
     return g_cm_per_s2_uncertainty / 100
 
