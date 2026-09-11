@@ -174,16 +174,40 @@ def d23_model(t_23, g_cm_per_s2):
     """
     Model function for curve_fit: predicts d_23 (cm) as a function of t_23,
     for the fixed d_12 spacing, using free-fall kinematics starting from
-    rest at point 1 (v1 = 0). g_cm_per_s2 is the single free parameter
-    curve_fit solves for.
+    rest at point 1 (v1 = 0).
+ 
+    Coordinate convention: y increases UPWARD (matching how l_1, l_3 were
+    actually measured -- l_1 is large/high, l_3 is small/low). Since the
+    ball falls downward in this frame, both its velocity and the
+    gravitational acceleration are NEGATIVE:
+ 
+        a_y = -g_cm_per_s2
+ 
+    v_y2 (signed velocity at point 2) comes from v_y2^2 = 2*g*d_12 (the
+    square removes the sign either way), and is negative since the ball is
+    moving down:
+ 
+        v_y2 = -sqrt(2 * g_cm_per_s2 * d_12)
+ 
+    Position update from point 2 to point 3:
+ 
+        y3 = y2 + v_y2*t_23 + 0.5*a_y*t_23**2
+        y2 - y3 = -(v_y2*t_23 + 0.5*a_y*t_23**2)
+ 
+    d_23 = y2 - y3 is the positive distance fallen, so:
+ 
+        d_23 = sqrt(2*g_cm_per_s2*d_12)*t_23 + 0.5*g_cm_per_s2*t_23**2
  
     t_23        : time between gate 2 and gate 3 (s)
-    g_cm_per_s2 : gravitational acceleration (cm/s^2)
+    g_cm_per_s2 : gravitational acceleration magnitude (cm/s^2), the free
+                  parameter curve_fit solves for
  
-    Returns predicted d_23 in cm.
+    Returns predicted d_23 (= y2 - y3, a positive distance) in cm.
     """
-    v_2 = np.sqrt(2 * g_cm_per_s2 * d_12)  # velocity at point 2 (cm/s), from v2^2 = 2*g*d12
-    return v_2 * t_23 + 0.5 * g_cm_per_s2 * t_23 ** 2
+    a_y = -g_cm_per_s2                              # acceleration is downward; y increases upward
+    v_y2 = -np.sqrt(2 * g_cm_per_s2 * d_12)         # velocity at point 2 (cm/s); negative, moving down
+    delta_y = v_y2 * t_23 + 0.5 * a_y * t_23 ** 2   # = y3 - y2 (negative, since the ball fell)
+    return -delta_y                                 # d_23 = y2 - y3 = -(y3 - y2), a positive distance
  
 def fit_g_curve_fit(runs):
     """
@@ -192,10 +216,11 @@ def fit_g_curve_fit(runs):
     2-point algebraic formula per trial/group and propagating uncertainty
     by hand.
  
-    d_23 = f(t_23; g) is fit directly against ALL trials at once. This makes
-    better use of the full dataset than the group-by-group algebraic method,
-    and avoids the error amplification that comes from subtracting two
-    similar-sized numbers (sqrt(2*d13) - sqrt(2*d12)) in get_g().
+    d_23 = f(t_23; g) is fit directly against ALL trials at once, using the
+    signed (y-up, v and g negative) derivation in d23_model(). This makes
+    better use of the full dataset than the group-by-group algebraic
+    method, and avoids the error amplification that comes from subtracting
+    two similar-sized numbers (sqrt(2*d13) - sqrt(2*d12)) in get_g().
  
     runs : list of (run_id, l_1, time_comp) tuples
  
@@ -249,7 +274,7 @@ def fit_g_curve_fit(runs):
     plt.show()
  
     return g_fit, g_fit_uncertainty
- 
+
  
 def plot_g_vs_t23(runs):
     """
