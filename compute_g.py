@@ -444,8 +444,8 @@ def main():
     group_g, group_g_unc = compute_group_results(groups)
     g_fit, g_fit_unc = fit_g_curve_fit(runs)
     check_agreement(g_fit, g_fit_unc, g_actual, 0.0, 'g_fit', 'g_actual')
-    # plot_g_vs_t23(runs)
-    # plot_g_vs_l1(groups, group_g, group_g_unc)
+    plot_g_vs_t23(runs)
+    plot_g_vs_l1(groups, group_g, group_g_unc)
     # plot_g_surface(runs)
     # plot_residual_distribution(runs, g_fit)
 
