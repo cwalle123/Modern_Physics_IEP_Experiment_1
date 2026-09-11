@@ -6,6 +6,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from scipy.stats import norm
 
 ################################################################################################################################################################
 """Constants"""
@@ -446,6 +447,7 @@ def main():
     # plot_g_vs_t23(runs)
     # plot_g_vs_l1(groups, group_g, group_g_unc)
     # plot_g_surface(runs)
+    # plot_residual_distribution(runs, g_fit)
 
 if __name__ == '__main__':
     main()
