@@ -330,7 +330,67 @@ def plot_g_vs_l1(groups, group_g, group_g_unc):
     plt.title('Measured g vs drop height (l_1)')
     plt.legend()
     plt.show()
+
+def plot_g_surface(runs=None, d13_range=None, t23_range=None):
+    """
+    3D surface plot of g as a function of d_13 and t_23, with d_12 held
+    fixed -- these are the only two quantities g actually depends on
+    (see get_g()), so this shows the whole "response surface" g is drawn
+    from rather than a single 1D slice of it.
  
+    If `runs` is given, the actual per-trial (d_13, t23, g) points are
+    scattered on top of the surface so you can see where your real data
+    sits relative to the full surface.
+ 
+    runs       : optional list of (run_id, l_1, time_comp) tuples
+    d13_range  : optional (min, max) in cm for the d_13 axis; auto-derived
+                 from runs if not given (falls back to a default range
+                 above d_12 if runs is also not given)
+    t23_range  : optional (min, max) in s for the t_23 axis; auto-derived
+                 from runs if not given (falls back to a default range)
+    """
+    import numpy as np
+ 
+    if runs is not None:
+        d13_vals = [abs(l_1 - l_3) for run_id, l_1, time_comp in runs]
+        t23_vals = [time_comp for run_id, l_1, time_comp in runs]
+    else:
+        d13_vals = []
+        t23_vals = []
+ 
+    # d_13 must exceed d_12 (point 3 is further from point 1 than point 2 is)
+    if d13_range is None:
+        d13_range = (min(d13_vals) * 0.9, max(d13_vals) * 1.1) if d13_vals \
+            else (d_12 * 1.05, d_12 * 3)
+    if t23_range is None:
+        t23_range = (min(t23_vals) * 0.9, max(t23_vals) * 1.1) if t23_vals \
+            else (0.01, 0.5)
+ 
+    d13_grid = np.linspace(*d13_range, 100)
+    t23_grid = np.linspace(*t23_range, 100)
+    D13, T23 = np.meshgrid(d13_grid, t23_grid)
+ 
+    # Vectorized version of get_g()'s formula, with d_12 fixed
+    G = (np.sqrt(2 * D13) - np.sqrt(2 * d_12)) ** 2 / T23 ** 2 / 100  # m/s^2
+ 
+    fig = plt.figure(figsize=(9, 7))
+    ax = fig.add_subplot(111, projection='3d')
+    surf = ax.plot_surface(D13, T23, G, cmap='viridis', alpha=0.75, edgecolor='none')
+    fig.colorbar(surf, shrink=0.6, label='g (m/s^2)')
+ 
+    if runs is not None:
+        g_vals = [get_g(t23, d_12, d13) for t23, d13 in zip(t23_vals, d13_vals)]
+        ax.scatter(d13_vals, t23_vals, g_vals, color='red', s=25, label='measured trials')
+        ax.legend()
+ 
+    ax.set_xlabel('d_13 (cm)')
+    ax.set_ylabel('t_23 (s)')
+    ax.set_zlabel('g (m/s^2)')
+    ax.set_title('g as a function of d_13 and t_23 (d_12 fixed)')
+ 
+    plt.tight_layout()
+    plt.show()
+
 ################################################################################################################################################################
 """Main"""
  
@@ -348,6 +408,7 @@ def main():
     check_agreement(g_fit, g_fit_unc, g_actual, 0.0, 'g_fit', 'g_actual')
     # plot_g_vs_t23(runs)
     # plot_g_vs_l1(groups, group_g, group_g_unc)
+    # plot_g_surface(runs)
  
 if __name__ == '__main__':
     main()
