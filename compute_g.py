@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.stats import norm
+from matplotlib.ticker import MaxNLocator
 
 ################################################################################################################################################################
 """Constants"""
@@ -30,6 +31,32 @@ t23_sensor_uncertainty = 2 * t_uncertainty              # s   (t23 = t3 - t2, so
 
 ################################################################################################################################################################
 """Functions"""
+
+def _style_axes(ax, include_x_zero=False, include_y_zero=False):
+    """
+    Apply consistent, rubric-compliant styling to a figure axis:
+
+    - No in-figure title (the caption belongs in the report text, not the
+      plot itself).
+    - Tick spacing restricted to legible steps of 1, 2 or 5 (via
+      MaxNLocator), instead of matplotlib's arbitrary default spacing.
+    - A light grid, since it makes it easier to read values off the axes
+      precisely -- helpful in both colour and black-and-white printouts.
+    - Optionally forces 0 onto an axis where that is a meaningful physical
+      reference point (e.g. a time or distance axis that starts at 0).
+
+    ax : a matplotlib Axes object
+    """
+    ax.set_title('')
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=8, steps=[1, 2, 2.5, 5, 10]))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=8, steps=[1, 2, 2.5, 5, 10]))
+    if include_x_zero:
+        left, right = ax.get_xlim()
+        ax.set_xlim(left=min(0, left), right=right)
+    if include_y_zero:
+        bottom, top = ax.get_ylim()
+        ax.set_ylim(bottom=min(0, bottom), top=top)
+    ax.grid(True, linewidth=0.4, alpha=0.5)
 
 def load_data(filepath):
     """
@@ -288,25 +315,32 @@ def fit_g_curve_fit(runs):
     t_test = np.linspace(0, 1.1 * max(all_t23), 1000)
     d23_fit = d23_model(t_test, g_fit_cm_per_s2)
 
-    plt.figure()
-    plt.plot(all_t23, all_d23, 'k.', ms=4, label='measurements')
-    plt.plot(t_test, d23_fit, 'r--', lw=2,
-              label=f'fit (g = {g_fit:.3f} $\\pm$ {g_fit_uncertainty:.3f} m/s$^2$)')
-    plt.xlabel('t23 (s)')
-    plt.ylabel('d23 (cm)')
-    plt.title('Global least-squares fit of g (all trials pooled)')
-    plt.legend()
+    fig, ax = plt.subplots()
+    ax.plot(all_t23, all_d23, marker='o', linestyle='none',
+            markerfacecolor='black', markeredgecolor='black', ms=4,
+            label='measurements')
+    ax.plot(t_test, d23_fit, color='black', linestyle='--', lw=1.5,
+            label=f'fit ($g$ = {g_fit:.3f} $\\pm$ {g_fit_uncertainty:.3f} m/s$^2$)')
+    ax.set_xlabel('$t_{23}$ (s)')
+    ax.set_ylabel('$d_{23}$ (cm)')
+    _style_axes(ax, include_x_zero=True, include_y_zero=True)
+    ax.legend()
+    fig.tight_layout()
     plt.show()
 
     # Residuals, to sanity-check the fit the same way as Notebook 5
     residuals = all_d23 - d23_model(all_t23, g_fit_cm_per_s2)
 
-    plt.figure()
-    plt.plot(all_t23, residuals, 'k.', ms=4)
-    plt.axhline(0, color='red', linestyle='--')
-    plt.xlabel('t23 (s)')
-    plt.ylabel('residual d23 (cm)')
-    plt.title('Residuals of the global g fit')
+    fig, ax = plt.subplots()
+    ax.plot(all_t23, residuals, marker='o', linestyle='none',
+            markerfacecolor='black', markeredgecolor='black', ms=4,
+            label='residual')
+    ax.axhline(0, color='black', linestyle='--', lw=1.2, label='zero residual')
+    ax.set_xlabel('$t_{23}$ (s)')
+    ax.set_ylabel('residual $d_{23}$ (cm)')
+    _style_axes(ax, include_x_zero=True)
+    ax.legend()
+    fig.tight_layout()
     plt.show()
 
     return g_fit, g_fit_uncertainty
@@ -334,15 +368,21 @@ def plot_g_vs_t23(runs):
         all_g.append(g_val)
         all_g_unc.append(g_unc)
 
-    # Scatter plot of g vs t23, with vertical error bars
-    plt.errorbar(all_t23, all_g, yerr=all_g_unc, fmt='o', capsize=3)
-    # Horizontal reference line at the accepted value of g
-    plt.axhline(g_actual, color='red', linestyle='--', label='Actual g')
+    # Scatter plot of g vs t23, with vertical error bars (the error flags
+    # required by the rubric)
+    fig, ax = plt.subplots()
+    ax.errorbar(all_t23, all_g, yerr=all_g_unc, fmt='o', color='black',
+                ecolor='black', markersize=4, capsize=3, label='measured $g$')
+    # Horizontal reference line at the accepted value of g -- dashed so it
+    # remains distinguishable from the data markers in black and white
+    ax.axhline(g_actual, color='black', linestyle='--', lw=1.2,
+               label='accepted $g$')
 
-    plt.xlabel('t23 (s)')
-    plt.ylabel('g (m/s^2)')
-    plt.title('Measured g vs t23')
-    plt.legend()
+    ax.set_xlabel('$t_{23}$ (s)')
+    ax.set_ylabel('$g$ (m/s$^2$)')
+    _style_axes(ax, include_x_zero=True)
+    ax.legend()
+    fig.tight_layout()
     plt.show()
 
 def plot_g_vs_y1(groups, group_g, group_g_unc):
@@ -358,15 +398,19 @@ def plot_g_vs_y1(groups, group_g, group_g_unc):
     """
     y1_values = sorted(groups)
 
-    # Scatter plot of g vs y_1, with vertical error bars
-    plt.errorbar(y1_values, group_g, yerr=group_g_unc, fmt='o', capsize=3)
+    # Scatter plot of g vs y_1, with vertical error bars (error flags)
+    fig, ax = plt.subplots()
+    ax.errorbar(y1_values, group_g, yerr=group_g_unc, fmt='o', color='black',
+                ecolor='black', markersize=4, capsize=3, label='measured $g$')
     # Horizontal reference line at the accepted value of g
-    plt.axhline(g_actual, color='red', linestyle='--', label='Actual g')
+    ax.axhline(g_actual, color='black', linestyle='--', lw=1.2,
+               label='accepted $g$')
 
-    plt.xlabel('y_1 (cm)')
-    plt.ylabel('g (m/s^2)')
-    plt.title('Measured g vs drop height (y_1)')
-    plt.legend()
+    ax.set_xlabel('$y_1$ (cm)')
+    ax.set_ylabel('$g$ (m/s$^2$)')
+    _style_axes(ax)
+    ax.legend()
+    fig.tight_layout()
     plt.show()
 
 def plot_g_surface(runs=None, d13_range=None, t23_range=None):
@@ -421,10 +465,10 @@ def plot_g_surface(runs=None, d13_range=None, t23_range=None):
         ax.scatter(d13_vals, t23_vals, g_vals, color='red', s=25, label='measured trials')
         ax.legend()
 
-    ax.set_xlabel('d_13 (cm)')
-    ax.set_ylabel('t_23 (s)')
-    ax.set_zlabel('g (m/s^2)')
-    ax.set_title('g as a function of d_13 and t_23 (d_12 fixed)')
+    ax.set_xlabel('$d_{13}$ (cm)')
+    ax.set_ylabel('$t_{23}$ (s)')
+    ax.set_zlabel('$g$ (m/s$^2$)')
+    ax.set_title('')
 
     plt.tight_layout()
     plt.show()
@@ -444,7 +488,7 @@ def main():
     group_g, group_g_unc = compute_group_results(groups)
     g_fit, g_fit_unc = fit_g_curve_fit(runs)
     check_agreement(g_fit, g_fit_unc, g_actual, 0.0, 'g_fit', 'g_actual')
-    plot_g_vs_t23(runs)
+    # plot_g_vs_t23(runs)
     plot_g_vs_y1(groups, group_g, group_g_unc)
     # plot_g_surface(runs)
     # plot_residual_distribution(runs, g_fit)
