@@ -26,7 +26,7 @@ d_12_uncertainty = y_1_uncertainty + y_2_uncertainty    # cm  (d12 = y1 - y2, so
 d_23_uncertainty = y_2_uncertainty + y_3_uncertainty    # cm  (d23 = y2 - y3, so uncertainties add)
 d_13_uncertainty = d_12_uncertainty + d_23_uncertainty  # cm  (d13 = d12 - d23, so uncertainties add)
 
-t_uncertainty = 1e-6                                    # s   (single photoelectric sensor reading, microsecond accuracy)
+t_uncertainty = 2e-6                                    # s   (single photoelectric sensor reading, microsecond accuracy)
 t23_sensor_uncertainty = 2 * t_uncertainty              # s   (t23 = t3 - t2, so the two sensor uncertainties add)
 
 ################################################################################################################################################################
@@ -207,12 +207,29 @@ def compute_group_results(groups):
 
     return group_g, group_g_unc
 
-def check_agreement(a, u_a, b, u_b, label_a='a', label_b='b'):
+
+def agreement_metrics(a, u_a, b, u_b):
     """
-    Check whether two measured values are in good agreement, per the
+    Compute the agreement metrics between two measured values, per the
     agreement criterion:
 
         |v| = |a - b| > 2*sqrt(u_a^2 + u_b^2) = 2*u_v  =>  NOT in good agreement
+
+    a, u_a  : first value and its uncertainty
+    b, u_b  : second value and its uncertainty
+
+    Returns (v, u_v, in_agreement), where in_agreement is True if the two
+    values ARE in good agreement (v <= u_v).
+    """
+    v = abs(a - b)
+    u_v = 2 * np.sqrt(u_a ** 2 + u_b ** 2)
+    return v, u_v, v <= u_v
+
+def check_agreement(a, u_a, b, u_b, label_a='a', label_b='b'):
+    """
+    Check whether two measured values are in good agreement (see
+    agreement_metrics for the criterion used), and print a one-line
+    summary of the result.
 
     a, u_a            : first value and its uncertainty
     b, u_b            : second value and its uncertainty
@@ -221,9 +238,7 @@ def check_agreement(a, u_a, b, u_b, label_a='a', label_b='b'):
     Prints the result and returns True if a and b ARE in good agreement,
     False otherwise.
     """
-    v = abs(a - b)
-    u_v = 2 * np.sqrt(u_a ** 2 + u_b ** 2)
-    in_agreement = v <= u_v
+    v, u_v, in_agreement = agreement_metrics(a, u_a, b, u_b)
 
     verdict = "ARE in good agreement" if in_agreement else "are NOT in good agreement"
     comparison = "<=" if in_agreement else ">"
@@ -231,6 +246,59 @@ def check_agreement(a, u_a, b, u_b, label_a='a', label_b='b'):
           f"{verdict}  (|v| = {v:.4f} {comparison} 2u_v = {u_v:.4f})")
 
     return in_agreement
+
+def print_agreement_table(groups, group_g, group_g_unc, g_fit, g_fit_uncertainty):
+    """
+    Print two agreement tables:
+
+    1. Every computed g value against the accepted value g_actual: each
+       per-height group from the algebraic method (get_g/get_g_uncertainty),
+       plus the pooled curve_fit value (g_fit), each against g_actual with
+       u_(g_actual) = 0.
+    2. Every per-height group g value against the pooled curve_fit value
+       (g_fit, with its own uncertainty g_fit_uncertainty) -- checking
+       whether the grouped/algebraic results are themselves consistent
+       with the pooled fit, independent of the accepted value.
+
+    Uses the same agreement criterion as check_agreement:
+        |v| = |a - b| > 2*sqrt(u_a^2 + u_b^2) = 2*u_v  =>  NOT in good agreement
+
+    groups             : dict mapping y_1 -> list of time_comp values
+                         (used to get the sorted y_1 values matching
+                         group_g/group_g_unc order)
+    group_g            : g value per group (m/s^2), sorted by y_1
+    group_g_unc        : uncertainty on g per group (m/s^2), sorted by y_1
+    g_fit              : pooled curve_fit g value (m/s^2)
+    g_fit_uncertainty  : uncertainty on g_fit (m/s^2)
+    """
+    y1_values = sorted(groups)
+
+    print("Agreement with accepted value g_actual:")
+    print(f"{'Source':>18} {'g (m/s^2)':>10} {'u_g':>8} {'v=|g-g_act|':>12} "
+          f"{'2u_v':>8} {'Agreement':>12}")
+
+    for y_1, g_val, g_unc in zip(y1_values, group_g, group_g_unc):
+        v, u_v, agree = agreement_metrics(g_val, g_unc, g_actual, 0.0)
+        label = f"y_1 = {y_1:.2f} cm"
+        verdict = "Agree" if agree else "Disagree"
+        print(f"{label:>18} {g_val:10.4f} {g_unc:8.4f} {v:12.4f} {u_v:8.4f} {verdict:>12}")
+
+    v, u_v, agree = agreement_metrics(g_fit, g_fit_uncertainty, g_actual, 0.0)
+    verdict = "Agree" if agree else "Disagree"
+    print(f"{'g_fit (pooled)':>18} {g_fit:10.4f} {g_fit_uncertainty:8.4f} {v:12.4f} "
+          f"{u_v:8.4f} {verdict:>12}")
+
+    print()
+    print(f"Agreement of each group with the pooled fit "
+          f"(g_fit = {g_fit:.4f} +/- {g_fit_uncertainty:.4f} m/s^2):")
+    print(f"{'Source':>18} {'g (m/s^2)':>10} {'u_g':>8} {'v=|g-g_fit|':>12} "
+          f"{'2u_v':>8} {'Agreement':>12}")
+
+    for y_1, g_val, g_unc in zip(y1_values, group_g, group_g_unc):
+        v, u_v, agree = agreement_metrics(g_val, g_unc, g_fit, g_fit_uncertainty)
+        label = f"y_1 = {y_1:.2f} cm"
+        verdict = "Agree" if agree else "Disagree"
+        print(f"{label:>18} {g_val:10.4f} {g_unc:8.4f} {v:12.4f} {u_v:8.4f} {verdict:>12}")
 
 
 def d23_model(t_23, g_cm_per_s2):
@@ -487,7 +555,7 @@ def main():
     groups = group_by_y1(runs)
     group_g, group_g_unc = compute_group_results(groups)
     g_fit, g_fit_unc = fit_g_curve_fit(runs)
-    check_agreement(g_fit, g_fit_unc, g_actual, 0.0, 'g_fit', 'g_actual')
+    # print_agreement_table(groups, group_g, group_g_unc, g_fit, g_fit_unc)
     # plot_g_vs_t23(runs)
     plot_g_vs_y1(groups, group_g, group_g_unc)
     # plot_g_surface(runs)
