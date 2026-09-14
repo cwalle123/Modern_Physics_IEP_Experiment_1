@@ -10,6 +10,20 @@ from scipy.stats import norm
 from matplotlib.ticker import MaxNLocator
 
 ################################################################################################################################################################
+"""Plot styling"""
+
+# Increase font sizes across every figure (labels, ticks, legends) so plots
+# stay legible once shrunk down to fit the report's column width.
+plt.rcParams.update({
+    'font.size': 14,
+    'axes.labelsize': 16,
+    'xtick.labelsize': 13,
+    'ytick.labelsize': 13,
+    'legend.fontsize': 13,
+    'figure.titlesize': 16,
+})
+
+################################################################################################################################################################
 """Constants"""
 
 g_actual = 9.812                                        # m/s^2 (accepted/reference value for gravitational acceleration)
@@ -383,14 +397,21 @@ def fit_g_curve_fit(runs):
     t_test = np.linspace(0, 1.1 * max(all_t23), 1000)
     d23_fit = d23_model(t_test, g_fit_cm_per_s2)
 
+    # The fit itself is done in d_23 space (see d23_model), but the plot
+    # shows d_13 = d_23 + d_12 instead, since d_13 is the quantity actually
+    # referenced elsewhere in the report (Equation~\ref{eq:g} and the
+    # results tables). This is just a constant vertical shift by d_12.
+    all_d13 = all_d23 + d_12
+    d13_fit = d23_fit + d_12
+
     fig, ax = plt.subplots()
-    ax.plot(all_t23, all_d23, marker='o', linestyle='none',
+    ax.plot(all_t23, all_d13, marker='o', linestyle='none',
             markerfacecolor='black', markeredgecolor='black', ms=4,
             label='measurements')
-    ax.plot(t_test, d23_fit, color='black', linestyle='--', lw=1.5,
+    ax.plot(t_test, d13_fit, color='black', linestyle='--', lw=1.5,
             label=f'fit ($g$ = {g_fit:.3f} $\\pm$ {g_fit_uncertainty:.3f} m/s$^2$)')
     ax.set_xlabel('$t_{23}$ (s)')
-    ax.set_ylabel('$d_{23}$ (cm)')
+    ax.set_ylabel('$d_{13}$ (cm)')
     _style_axes(ax, include_x_zero=True, include_y_zero=True)
     ax.legend()
     fig.tight_layout()
@@ -481,6 +502,69 @@ def plot_g_vs_y1(groups, group_g, group_g_unc):
     fig.tight_layout()
     plt.show()
 
+def plot_g_trials_in_group(groups, y_1=None):
+    """
+    Plot every individual trial's g value (not the group average), each
+    with its own propagated uncertainty. The x-axis is trial number rather
+    than y_1, since y_1 is fixed within any single group.
+
+    Each point uses only the sensor's timing uncertainty (t23_sensor_uncertainty),
+    since these are single-trial values rather than group averages -- no
+    statistical spread to combine with, unlike compute_group_results().
+
+    groups : dict mapping y_1 -> list of time_comp values
+    y_1    : optional. If given, only that group's trials are plotted (must
+             be a key present in `groups`), numbered 1..n within that group.
+             If omitted (default), every trial from every group is plotted
+             on one figure (e.g. all 15 trials across 3 groups of 5), with
+             a continuous trial index across groups and a different marker
+             shape per group so they stay distinguishable in black and white.
+    """
+    # Marker shapes cycle if there are more groups than shapes listed here
+    markers = ['o', 's', '^', 'D', 'v', 'P', 'X']
+
+    fig, ax = plt.subplots()
+
+    if y_1 is not None:
+        if y_1 not in groups:
+            raise KeyError(f"y_1 = {y_1} not found in groups. Available: {sorted(groups)}")
+        target_groups = [y_1]
+    else:
+        target_groups = sorted(groups)
+
+    trial_index = 0  # continuous index across all plotted groups
+    all_trial_numbers = []
+    for group_i, group_y1 in enumerate(target_groups):
+        times = groups[group_y1]
+        d_13 = abs(group_y1 - y_3)
+
+        trial_numbers = []
+        g_vals = []
+        g_uncs = []
+        for t_23 in times:
+            trial_index += 1
+            trial_numbers.append(trial_index)
+            g_vals.append(get_g(t_23, d_12, d_13))
+            g_uncs.append(get_g_uncertainty(t_23, t23_sensor_uncertainty, d_12, d_13))
+        all_trial_numbers.extend(trial_numbers)
+
+        label = 'measured $g$' if y_1 is not None else f'$y_1$ = {group_y1:.2f} cm'
+        ax.errorbar(trial_numbers, g_vals, yerr=g_uncs,
+                    fmt=markers[group_i % len(markers)], color='black',
+                    ecolor='black', markersize=4, capsize=3, label=label)
+
+    # Horizontal reference line at the accepted value of g
+    ax.axhline(g_actual, color='black', linestyle='--', lw=1.2,
+               label='accepted $g$')
+
+    ax.set_xlabel('Trial number')
+    ax.set_ylabel('$g$ (m/s$^2$)')
+    ax.set_xticks(all_trial_numbers)
+    _style_axes(ax)
+    ax.legend()
+    fig.tight_layout()
+    plt.show()
+
 def plot_g_surface(runs=None, d13_range=None, t23_range=None):
     """
     3D surface plot of g as a function of d_13 and t_23, with d_12 held
@@ -558,6 +642,7 @@ def main():
     # print_agreement_table(groups, group_g, group_g_unc, g_fit, g_fit_unc)
     # plot_g_vs_t23(runs)
     plot_g_vs_y1(groups, group_g, group_g_unc)
+    plot_g_trials_in_group(groups)  # all 15 trials across every group; pass a specific y_1 to see just one group
     # plot_g_surface(runs)
     # plot_residual_distribution(runs, g_fit)
 
