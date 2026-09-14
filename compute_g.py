@@ -13,16 +13,16 @@ from scipy.stats import norm
 
 g_actual = 9.812                                        # m/s^2 (accepted/reference value for gravitational acceleration)
 
-# l_1 varies per run and is loaded from Data/data.csv instead of being hard-coded here.
-d_12 = 7.5                                              # cm  distance between gate 1 and gate 2, fixed for every trial (original l_1 - l_2 = 101.5 - 94)  
-l_3 = 1.3                                               # cm
+# y_1 varies per run and is loaded from Data/data.csv instead of being hard-coded here.
+d_12 = 7.5                                              # cm  distance between gate 1 and gate 2, fixed for every trial (original y_1 - y_2 = 101.5 - 94)  
+y_3 = 1.3                                               # cm
 
-l_1_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
-l_2_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
-l_3_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
+y_1_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
+y_2_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
+y_3_uncertainty = 0.1                                   # cm  (measuring tape, mm accuracy)
 
-d_12_uncertainty = l_1_uncertainty + l_2_uncertainty    # cm  (d12 = l1 - l2, so uncertainties add)
-d_23_uncertainty = l_2_uncertainty + l_3_uncertainty    # cm  (d23 = l2 - l3, so uncertainties add)
+d_12_uncertainty = y_1_uncertainty + y_2_uncertainty    # cm  (d12 = y1 - y2, so uncertainties add)
+d_23_uncertainty = y_2_uncertainty + y_3_uncertainty    # cm  (d23 = y2 - y3, so uncertainties add)
 d_13_uncertainty = d_12_uncertainty + d_23_uncertainty  # cm  (d13 = d12 - d23, so uncertainties add)
 
 t_uncertainty = 1e-6                                    # s   (single photoelectric sensor reading, microsecond accuracy)
@@ -35,9 +35,9 @@ def load_data(filepath):
     """
     Read the raw trial data from a CSV file.
 
-    Expected columns: run, l_1, t23 (with a header row to skip).
+    Expected columns: run, y_1, t23 (with a header row to skip).
 
-    Returns a list of tuples: (run_id, l_1, time_comp)
+    Returns a list of tuples: (run_id, y_1, time_comp)
     """
     runs = []
     with open(filepath, newline='') as f:
@@ -46,23 +46,23 @@ def load_data(filepath):
         for row in reader:
             if not row:  # skip blank lines (e.g. trailing newline at end of file)
                 continue
-            run_id, l_1, time_comp = row
+            run_id, y_1, time_comp = row
             # Convert all values from strings to floats before storing
-            runs.append((float(run_id), float(l_1), float(time_comp)))
+            runs.append((float(run_id), float(y_1), float(time_comp)))
     return runs
 
-def group_by_l1(runs):
+def group_by_y1(runs):
     """
-    Group trial timing data by l_1 (i.e. by which distance setting was used).
+    Group trial timing data by y_1 (i.e. by which distance setting was used).
 
-    runs : list of (run_id, l_1, time_comp) tuples
+    runs : list of (run_id, y_1, time_comp) tuples
 
-    Returns a dict mapping l_1 -> list of time_comp values for that l_1.
+    Returns a dict mapping y_1 -> list of time_comp values for that y_1.
     """
     groups = {}
-    for run_id, l_1, time_comp in runs:
-        # setdefault creates an empty list the first time this l_1 is seen
-        groups.setdefault(l_1, []).append(time_comp)
+    for run_id, y_1, time_comp in runs:
+        # setdefault creates an empty list the first time this y_1 is seen
+        groups.setdefault(y_1, []).append(time_comp)
     return groups
 
 
@@ -127,18 +127,18 @@ def get_g_uncertainty(t_23, t23_uncertainty, d_12, d_13):
 
 def compute_group_results(groups):
     """
-    For each l_1 group: average the trial times, compute g and its
+    For each y_1 group: average the trial times, compute g and its
     uncertainty, and print a summary row.
 
     The uncertainty used for t_23 in this function is the STATISTICAL
-    spread of the repeated timing measurements at this l_1 (standard error
+    spread of the repeated timing measurements at this y_1 (standard error
     of the mean), combined in quadrature with the fixed sensor uncertainty
     (t23_sensor_uncertainty) -- so even a single trial (n=1) still carries
     the sensor's instrumental uncertainty rather than 0.
 
-    groups : dict mapping l_1 -> list of time_comp values
+    groups : dict mapping y_1 -> list of time_comp values
 
-    Returns two lists (same order, sorted by l_1):
+    Returns two lists (same order, sorted by y_1):
       group_g     : g value per group (m/s^2)
       group_g_unc : uncertainty on g per group (m/s^2)
     """
@@ -146,14 +146,14 @@ def compute_group_results(groups):
     group_g_unc = []
 
     # Print table header
-    print(f"{'l_1 (cm)':>10} {'d_13 (cm)':>10} {'N':>4} {'g (m/s^2)':>14} {'% error':>8}")
+    print(f"{'y_1 (cm)':>10} {'d_13 (cm)':>10} {'N':>4} {'g (m/s^2)':>14} {'% error':>8}")
 
-    for l_1 in sorted(groups):
-        times = groups[l_1]
+    for y_1 in sorted(groups):
+        times = groups[y_1]
         n = len(times)
-        d_13 = abs(l_1 - l_3)  # distance between gate 1 and gate 3 for this l_1
+        d_13 = abs(y_1 - y_3)  # distance between gate 1 and gate 3 for this y_1
 
-        # Mean time across all trials at this l_1
+        # Mean time across all trials at this y_1
         mean_t23 = sum(times) / n
 
         # Standard error of the mean time (only meaningful with >1 trial)
@@ -173,7 +173,7 @@ def compute_group_results(groups):
         pct_err = abs((g_val - g_actual) / g_actual * 100)
 
         # Print one row of the summary table
-        print(f"{l_1:10.2f} {d_13:10.2f} {n:4d} {g_val:8.4f} +/- {g_unc:.4f} {pct_err:8.2f}")
+        print(f"{y_1:10.2f} {d_13:10.2f} {n:4d} {g_val:8.4f} +/- {g_unc:.4f} {pct_err:8.2f}")
 
         group_g.append(g_val)
         group_g_unc.append(g_unc)
@@ -212,8 +212,8 @@ def d23_model(t_23, g_cm_per_s2):
     for the fixed d_12 spacing, using free-fall kinematics starting from
     rest at point 1 (v1 = 0).
 
-    Coordinate convention: y increases UPWARD (matching how l_1, l_3 were
-    actually measured -- l_1 is large/high, l_3 is small/low). Since the
+    Coordinate convention: y increases UPWARD (matching how y_1, y_3 were
+    actually measured -- y_1 is large/high, y_3 is small/low). Since the
     ball falls downward in this frame, both its velocity and the
     gravitational acceleration are NEGATIVE:
 
@@ -258,12 +258,12 @@ def fit_g_curve_fit(runs):
     method, and avoids the error amplification that comes from subtracting
     two similar-sized numbers (sqrt(2*d13) - sqrt(2*d12)) in get_g().
 
-    runs : list of (run_id, l_1, time_comp) tuples
+    runs : list of (run_id, y_1, time_comp) tuples
 
     Returns (g_fit, g_fit_uncertainty) in m/s^2.
     """
-    all_t23 = np.array([time_comp for run_id, l_1, time_comp in runs])
-    all_d23 = np.array([abs(l_1 - l_3) - d_12 for run_id, l_1, time_comp in runs])
+    all_t23 = np.array([time_comp for run_id, y_1, time_comp in runs])
+    all_d23 = np.array([abs(y_1 - y_3) - d_12 for run_id, y_1, time_comp in runs])
 
     # Least-squares fit of g_cm_per_s2 via curve_fit. p0 is a rough initial
     # guess (in cm/s^2) -- the model is nonlinear in g (it appears under a
@@ -317,15 +317,15 @@ def plot_g_vs_t23(runs):
     Plot g computed individually for every single trial (not grouped/averaged),
     against t23, with error bars, alongside a reference line for the actual g value.
 
-    runs : list of (run_id, l_1, time_comp) tuples
+    runs : list of (run_id, y_1, time_comp) tuples
     """
     all_t23 = []
     all_g = []
     all_g_unc = []
 
     # Compute g and its uncertainty for every individual trial
-    for run_id, l_1, time_comp in runs:
-        d_13 = abs(l_1 - l_3)
+    for run_id, y_1, time_comp in runs:
+        d_13 = abs(y_1 - y_3)
         g_val = get_g(time_comp, d_12, d_13)
         # Single trial, no averaging -- only the sensor's own timing
         # uncertainty applies (no statistical spread to combine with)
@@ -345,27 +345,27 @@ def plot_g_vs_t23(runs):
     plt.legend()
     plt.show()
 
-def plot_g_vs_l1(groups, group_g, group_g_unc):
+def plot_g_vs_y1(groups, group_g, group_g_unc):
     """
-    Plot the averaged g value per l_1 group against l_1 (drop height), to
+    Plot the averaged g value per y_1 group against y_1 (drop height), to
     check whether apparent g varies with drop height -- in reality this is
     more likely a sign of drag effects than a real change in g.
 
-    groups      : dict mapping l_1 -> list of time_comp values (used to get
-                  the sorted l_1 values matching group_g/group_g_unc order)
-    group_g     : g value per group (m/s^2), sorted by l_1
-    group_g_unc : uncertainty on g per group (m/s^2), sorted by l_1
+    groups      : dict mapping y_1 -> list of time_comp values (used to get
+                  the sorted y_1 values matching group_g/group_g_unc order)
+    group_g     : g value per group (m/s^2), sorted by y_1
+    group_g_unc : uncertainty on g per group (m/s^2), sorted by y_1
     """
-    l1_values = sorted(groups)
+    y1_values = sorted(groups)
 
-    # Scatter plot of g vs l_1, with vertical error bars
-    plt.errorbar(l1_values, group_g, yerr=group_g_unc, fmt='o', capsize=3)
+    # Scatter plot of g vs y_1, with vertical error bars
+    plt.errorbar(y1_values, group_g, yerr=group_g_unc, fmt='o', capsize=3)
     # Horizontal reference line at the accepted value of g
     plt.axhline(g_actual, color='red', linestyle='--', label='Actual g')
 
-    plt.xlabel('l_1 (cm)')
+    plt.xlabel('y_1 (cm)')
     plt.ylabel('g (m/s^2)')
-    plt.title('Measured g vs drop height (l_1)')
+    plt.title('Measured g vs drop height (y_1)')
     plt.legend()
     plt.show()
 
@@ -380,7 +380,7 @@ def plot_g_surface(runs=None, d13_range=None, t23_range=None):
     scattered on top of the surface so you can see where your real data
     sits relative to the full surface.
 
-    runs       : optional list of (run_id, l_1, time_comp) tuples
+    runs       : optional list of (run_id, y_1, time_comp) tuples
     d13_range  : optional (min, max) in cm for the d_13 axis; auto-derived
                  from runs if not given (falls back to a default range
                  above d_12 if runs is also not given)
@@ -390,8 +390,8 @@ def plot_g_surface(runs=None, d13_range=None, t23_range=None):
     import numpy as np
 
     if runs is not None:
-        d13_vals = [abs(l_1 - l_3) for run_id, l_1, time_comp in runs]
-        t23_vals = [time_comp for run_id, l_1, time_comp in runs]
+        d13_vals = [abs(y_1 - y_3) for run_id, y_1, time_comp in runs]
+        t23_vals = [time_comp for run_id, y_1, time_comp in runs]
     else:
         d13_vals = []
         t23_vals = []
@@ -440,12 +440,12 @@ def main():
     """
     
     runs = load_data('Data/data.csv')
-    groups = group_by_l1(runs)
+    groups = group_by_y1(runs)
     group_g, group_g_unc = compute_group_results(groups)
     g_fit, g_fit_unc = fit_g_curve_fit(runs)
     check_agreement(g_fit, g_fit_unc, g_actual, 0.0, 'g_fit', 'g_actual')
     plot_g_vs_t23(runs)
-    plot_g_vs_l1(groups, group_g, group_g_unc)
+    plot_g_vs_y1(groups, group_g, group_g_unc)
     # plot_g_surface(runs)
     # plot_residual_distribution(runs, g_fit)
 
